@@ -1,5 +1,5 @@
 /*
-Maquina Vendig
+Maquina Vending
 Programa de una maquina vending refrigerada con las siguientes caracteristicas:
 --Refrigeracin Bizona y seleccionable
 --Deteccion de caida de objeto
