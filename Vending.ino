@@ -1,3 +1,79 @@
+/*
+Maquina Vendig
+Programa de una maquina vending refrigerada con las siguientes caracteristicas:
+--Refrigeracin Bizona y seleccionable
+--Deteccion de caida de objeto
+--Detector de monedas
+--Gestion de la maquina mediante comandos Shell()
+
+Control de refrigeracion:
+– Cada zona de refrigeración tendrá un control de temperatura individual. La activación de las zonas se hará de forma
+individual. Cada circuito de líquido refrigerante se encontrará controlado por una electroválvula.
+– Si una de las zonas se activa deberá activarse el compresor.
+– Si la temperatura de cualquiera de las zonas alcanza la temperatura máxima se activará una señal de error y se parará
+  el funcionamiento de la máquina.
+– La máquina tendrá un control horario que permitirá introducir a ésta en un modo de bajo consumo donde no aceptara
+  dinero y no dispensará productos.
+– La comunicación con la máquina y la selección de productos se hará ahora mediante la consola de comandos Shell.
+– La temperatura y el tiempo de activación serán configurables desde la consola de comandos Shell.
+– Los parámetros y rangos de los sensores analógicos son configurables mediante comandos Shell (ganancia, offset, histéresis).
+
+Deteccion de fallos:
+– Si la temperatura de cualquiera de las zonas alcanza la temperatura máxima se activará una señal de error.
+– Se monitorizará la humedad de las zonas y se detectará error cuando superé el valor especificado tal como se describe
+  más adelante.
+– Se supervisará la alimentación del sistema
+– El mal funcionamiento, producido por cualquiera de los tres errores anteriores, llevará la máquina al paro y 
+  enviará un mensaje de error específico por la consola. Además, de la indicación luminosa pertinente.
+
+Salvado de datos en memoria no Volatil:
+– Todos los parámetros de configuración se almacenaran en la EEPROM.
+– El botón de Reset configurará el sistema con unos parámetros por defecto almacenados en la EEPROM.
+– Los parámetros de funcionamiento y los parámetros por defecto no tendrán porqué ser coincidentes por lo que
+  se almacenarán de forma independiente en le EEPROM.
+– Almacenar número de productos dispensados para la obtención de estadísticas.
+
+
+
+
+
+Vending Machine
+Program of a refrigerated vending machine with the following characteristics:
+--Bizone cooling and selectable
+--Falling object detection
+--Coin detector
+--Management of the machine through Shell() commands
+
+Refrigeration control:
+– Each cooling zone will have an individual temperature control. The activation of the zones will be done
+individual. Each refrigerant liquid circuit will be controlled by a solenoid valve.
+– If one of the zones is activated, the compressor must be activated.
+– If the temperature of any of the zones reaches the maximum temperature, an error signal will be activated and it will stop
+  the operation of the machine.
+– The machine will have a time control that will allow it to enter a low consumption mode where it will not accept
+  money and will not dispense products.
+– Communication with the machine and product selection will now be done through the Shell command console.
+– The temperature and activation time will be configurable from the Shell command console.
+– The parameters and ranges of the analog sensors are configurable through shell commands (gain, offset, hysteresis).
+
+Fault detection:
+– If the temperature of any of the zones reaches the maximum temperature, an error signal will be activated.
+– The humidity of the zones will be monitored and an error will be detected when it exceeds the specified value as described
+  later.
+– System power will be monitored
+– The malfunction, caused by any of the three previous errors, will stop the machine and
+  will send a specific error message to the console. In addition, of the pertinent luminous indication.
+
+Save data in non-volatile memory:
+– All configuration parameters will be stored in the EEPROM.
+– The Reset button will configure the system with default parameters stored in the EEPROM.
+– The operating parameters and the default parameters will not have to be the same, so
+  they will be stored independently in the EEPROM.
+– Store number of dispensed products to obtain statistics.
+*/
+
+
+
 #include <arduino.h>
 #include "MapFloat.h"
 #include <stdio.h>
@@ -6,167 +82,166 @@
 #include <EEPROM.h>
 
 const int b_reset = 2;
-const int ventilador1 = 3;
-const int ventilador2 = 4;
-const int motor1 = 5;
-const int motor2 = 6;
-const int electrov1 = 7;
-const int electrov2 = 8;
-const int p_compresor = 9;
+const int ventilator1 = 3;
+const int ventilator2 = 4;
+const int engine1 = 5;
+const int engine2 = 6;
+const int solenoid1 = 7;
+const int solenoid2 = 8;
+const int p_compressor = 9;
 const int led_error = 10;
-const int caiProducto = 11;
-const int selec_monedas_led = 12;
-const int selec_monedas_boton = 13;
-
+const int caiProduct = 11;
+const int selec_coins_led = 12;
+const int selec_coins_button = 13;
 const int pinUps = A0;
 const int temp_1 = A1;
 const int temp_2 = A2;
 const int hum_1 = A3;
 const int hum_2 = A4;
 
-const unsigned long tCaida = 20000;
-const unsigned long seguridadCaida = 1000;
+const unsigned long tDrop = 20000;
+const unsigned long securityDrop = 1000;
 
-enum CONTROL_HORAS
+enum Control_Hours
 {
-  B_COSUMO,
-  MODO_ON
+  L_COSUM,
+  MODE_ON
 };
-CONTROL_HORAS contr_h;
+Control_Hours contr_h;
 
-enum Estados_maqui
+enum Machine_State
 {
-  BATERIA_OK,
-  BAJA_TENSION,
+  BATTERY_OK,
+  LOW_VOLTAGE,
   ERROR_T_Z1,
   ERROR_T_Z2,
   ERROR_H_Z1,
   ERROR_H_Z2
 };
 
-Estados_maqui estado_maquina;
+Machine_State machine_state;
 
-enum Dispensador
+enum Dispenser
 {
-  IMPORTE,
+  AMOUNT,
   M_PROD,
-  SELECCION,
-  COMPARACION,
-  MOTOR,
-  CAIDA,
-  DEVO_IMPO,
-  DEVO_CAM
+  SELECTION,
+  COMPARISON,
+  ENGINE,
+  DROP,
+  REFUND_AMOUNT,
+  RETURN_EXCHAN
 };
-Dispensador venta = IMPORTE;
+Dispenser sale = AMOUNT;
 
-typedef struct reloj
+typedef struct Clock
 {
   byte hora;
   byte minuto;
   byte segundo;
   byte milisegundo;
 };
-reloj reloj1;
+Clock reloj1;
 
-typedef struct producto
+typedef struct product
 {
-  char descripcion[15];
-  char codigo[4];
-  float precio;
+  char description[15];
+  char code[4];
+  float price;
   int stock;
-  int pin_motor;
+  int pin_engine;
   unsigned long int ton;
 };
 
 typedef struct sensor
 {
   int pin;
-  float histeresis;
-  float objetivo;
-  float peligro;
+  float hysteresis;
+  float objective;
+  float danger;
   float min;
   float max;
   unsigned long ms_error;
   float ofset;
 };
 
-typedef struct lectura_varios
+typedef struct var_measurements
 {
   float ups;
-  float temperatura[2];
-  float humedad[2];
+  float temperature[2];
+  float humidity[2];
 };
-lectura_varios l_varios;
+var_measurements l_various;
 
-typedef struct errores_varios
+typedef struct error_various
 {
   float ups;
-  float temperatura[2];
-  float humedad[2];
+  float temperature[2];
+  float humidity[2];
 };
-errores_varios e_varios;
+error_various e_various;
 
-typedef struct control_zonas
+typedef struct control_zones
 {
-  sensor humedad;
-  sensor temperatura;
-  producto productos[5];
-  bool refrigeracion;
-  bool ventilador;
+  sensor humidity;
+  sensor temperature;
+  product products[5];
+  bool refrigeration;
+  bool ventilator;
 };
 
 typedef struct vending
 {
-  reloj on;
-  reloj of;
-  reloj reloj_actual;
-  control_zonas zonas[2];
+  Clock on;
+  Clock of;
+  Clock actual_hour;
+  control_zones zone[2];
   sensor ups;
-  float credito;
-  float cambio;
+  float credit;
+  float change;
   bool power_mode;
 };
-vending maquina;
+vending machine;
 
 
-void serial_delay(String *str, unsigned long tiempo);
-void millisReloj(void);
-float lectura(sensor *temp);
-bool estado(sensor *temp, float *lectura);
-bool error_ups(sensor *temp, float *lectura);
-bool error(sensor *temp, float *lectura, unsigned long *cont);
-int parpadeoLed(unsigned long ton, unsigned long tof);
-unsigned long  leerBoton(int input);
-bool comparacion(float precio, float importe);
-float importe(unsigned long tiempo);
-float cambio(float precio, float euro);
-float cambioSeg(float cam);
+void serial_delay(String *str, unsigned long time);
+void millisClock(void);
+float measurement(sensor *temp);
+bool estate(sensor *temp, float *measurement);
+bool error_ups(sensor *temp, float *measurement);
+bool error(sensor *temp, float *measurement, unsigned long *cont);
+int ledBlink(unsigned long ton, unsigned long tof);
+unsigned long readButton(int input);
+bool comparison(float price, float amount);
+float amount(unsigned long time);
+float change(float price, float euro);
+float changeSeg(float cam);
 byte serialEvent(String *com);
-reloj config_horario(String *cmd);
-void config_parametros_temp(String *cmd, sensor *temp);
-int localicar_producto(producto *temp, String *str);
-CONTROL_HORAS horario(reloj *on, reloj *of, reloj *actual);
-float parametro_introducido(String *cmd, String delimitador);
-int localizador_zona(String *cmd);
+Clock config_schedule(String *cmd);
+void config_parameters_temp(String *cmd, sensor *temp);
+int trace_product(product *temp, String *str);
+Control_Hours schedule(Clock *on, Clock *of, Clock *actual);
+float parameter_introduced(String *cmd, String delimiter);
+int trace_zone(String *cmd);
 
 unsigned long con_temp_z1;
 unsigned long con_temp_z2;
 unsigned long con_hum_z1;
 unsigned long con_hum_z2;
-unsigned long conMotor;
-unsigned long conCambio;
-unsigned long camTiempo;
-unsigned long conCaida;
+unsigned long conEngine;
+unsigned long conChange;
+unsigned long camTime;
+unsigned long conDrop;
 unsigned long cont_res;
 
-int parpadeo;
+int blink;
 byte blinkCount = 0;
-byte horaActual_int[3];
+byte actual_Hour_int[3];
 char *p_tr;
 int i;
-String comando = "";
-int tpulsado;
-int zona;
+String command = "";
+int tpulsed;
+int zone;
 int posi;
 String pro_intro = "";
 bool comp;
@@ -177,139 +252,144 @@ bool aux_error = false;
 void setup()
 {
   pinMode(b_reset, INPUT_PULLUP);
-  pinMode(ventilador1, OUTPUT);
-  pinMode(ventilador2, OUTPUT);
-  pinMode(motor1, OUTPUT);
-  pinMode(motor2, OUTPUT);
-  pinMode(electrov1, OUTPUT);
-  pinMode(electrov2, OUTPUT);
-  pinMode(p_compresor, OUTPUT);
+  pinMode(ventilator1, OUTPUT);
+  pinMode(ventilator2, OUTPUT);
+  pinMode(engine1, OUTPUT);
+  pinMode(engine2, OUTPUT);
+  pinMode(solenoid1, OUTPUT);
+  pinMode(solenoid2, OUTPUT);
+  pinMode(p_compressor, OUTPUT);
   pinMode(led_error, OUTPUT);
-  pinMode(selec_monedas_led, OUTPUT);
-  pinMode(caiProducto, INPUT_PULLUP);
-  pinMode(selec_monedas_led, OUTPUT);
-  pinMode(selec_monedas_boton, INPUT_PULLUP);
+  pinMode(selec_coins_led, OUTPUT);
+  pinMode(caiProduct, INPUT_PULLUP);
+  pinMode(selec_coins_led, OUTPUT);
+  pinMode(selec_coins_button, INPUT_PULLUP);
   Serial.begin(9600);
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
   Timer1.initialize(100000);
-  Timer1.attachInterrupt(millisReloj);
+  Timer1.attachInterrupt(millisClock);
 
-  char horaActual_char[9] PROGMEM = __TIME__;
-  p_tr = strtok(horaActual_char, ":");
+  char actual_hour_char[9] PROGMEM = __TIME__;
+  p_tr = strtok(actual_hour_char, ":");
   while (p_tr != NULL)
   {
-    horaActual_int[i++] = atoi(p_tr);
+    actual_Hour_int[i++] = atoi(p_tr);
     p_tr = strtok(NULL, ":");
   }
   if (i = 3)
     i = 0;
 
-  reloj1 = {horaActual_int[0], horaActual_int[1], horaActual_int[2], 0};
+  reloj1 = {actual_Hour_int[0], actual_Hour_int[1], actual_Hour_int[2], 0};
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   /*
-    maquina.cambio = 0.0;
-    maquina.credito = 0.0;
+    IMPORTATE: QUITAR COMENTARIOS CUANDO SE QUIERA INICIAR MAQUINA POR PRIMERA VEZ
+    Se cargara la informacion de la maquina en la eeprom
 
-    //reloj = {h, m, s, ms};
-    maquina.on = {6, 30, 0, 0};
-    maquina.of = {23, 59, 0, 0};
-    maquina.reloj_actual = {0, 0, 0, 0};
-    maquina.power_mode = true;
+    //Datos maquina
+
+    machine.change = 0.0;
+    machine.credit = 0.0;
+
+    //Clock = {h, m, s, ms};
+    machine.on = {6, 30, 0, 0};
+    machine.of = {23, 59, 0, 0};
+    machine.actual_hour = {0, 0, 0, 0};
+    machine.power_mode = true;
 
     //sensor = {pin, histe, obj, peli, min, max, ms_er, ofs}
-    maquina.ups = {pinUps, 0, 0, 10.0, 0.0, 12.0, 3000, 0.0};
-    maquina.zonas[0].temperatura = {temp_1, 0.75, 16.0, 25, -10.0, 40.0, 2000, 0.0};
-    maquina.zonas[1].temperatura = {temp_2, 0.75, 22.0, 25, -10.0, 40.0, 2000, 0.0};
-    maquina.zonas[0].humedad = {hum_1, 5.0, 20.0, 30.0, 0.0, 100.0, 6000, 1};
-    maquina.zonas[1].humedad = {hum_2, 5.0, 20.0, 30.0, 0.0, 100.0, 6000, 1};
+    machine.ups = {pinUps, 0, 0, 10.0, 0.0, 12.0, 3000, 0.0};
+    machine.zone[0].temperature = {temp_1, 0.75, 16.0, 25, -10.0, 40.0, 2000, 0.0};
+    machine.zone[1].temperature = {temp_2, 0.75, 22.0, 25, -10.0, 40.0, 2000, 0.0};
+    machine.zone[0].humidity = {hum_1, 5.0, 20.0, 30.0, 0.0, 100.0, 6000, 1};
+    machine.zone[1].humidity = {hum_2, 5.0, 20.0, 30.0, 0.0, 100.0, 6000, 1};
 
-    //producto = {desc, cod, preci, stock, pin, ton}
-    strcpy(maquina.zonas[0].productos[0].descripcion, "Coca Cola");
-    strcpy(maquina.zonas[0].productos[1].descripcion, "Fanta Naranja");
-    strcpy(maquina.zonas[0].productos[2].descripcion, "Zumo de Limon");
-    strcpy(maquina.zonas[0].productos[3].descripcion, "Zumo de Piña");
-    strcpy(maquina.zonas[0].productos[4].descripcion, "Agua Mineral");
-    strcpy(maquina.zonas[1].productos[0].descripcion, "Patatas fritas");
-    strcpy(maquina.zonas[1].productos[1].descripcion, "Cacahuetes");
-    strcpy(maquina.zonas[1].productos[2].descripcion, "Pistachos");
-    strcpy(maquina.zonas[1].productos[3].descripcion, "Pipas");
-    strcpy(maquina.zonas[1].productos[4].descripcion, "Maices");
+    //product = {desc, cod, preci, stock, pin, ton}
+    strcpy(machine.zone[0].products[0].description, "Coca Cola");
+    strcpy(machine.zone[0].products[1].description, "Fanta Naranja");
+    strcpy(machine.zone[0].products[2].description, "Zumo de Limon");
+    strcpy(machine.zone[0].products[3].description, "Zumo de Piña");
+    strcpy(machine.zone[0].products[4].description, "Agua Mineral");
+    strcpy(machine.zone[1].products[0].description, "Patatas fritas");
+    strcpy(machine.zone[1].products[1].description, "Cacahuetes");
+    strcpy(machine.zone[1].products[2].description, "Pistachos");
+    strcpy(machine.zone[1].products[3].description, "Pipas");
+    strcpy(machine.zone[1].products[4].description, "Maices");
 
-    strcpy(maquina.zonas[0].productos[0].codigo, "A35");
-    strcpy(maquina.zonas[0].productos[1].codigo, "A36");
-    strcpy(maquina.zonas[0].productos[2].codigo, "A37");
-    strcpy(maquina.zonas[0].productos[3].codigo, "A38");
-    strcpy(maquina.zonas[0].productos[4].codigo, "A39");
-    strcpy(maquina.zonas[1].productos[0].codigo, "A40");
-    strcpy(maquina.zonas[1].productos[1].codigo, "A41");
-    strcpy(maquina.zonas[1].productos[2].codigo, "A42");
-    strcpy(maquina.zonas[1].productos[3].codigo, "A43");
-    strcpy(maquina.zonas[1].productos[4].codigo, "A44");
+    strcpy(machine.zone[0].products[0].code, "A35");
+    strcpy(machine.zone[0].products[1].code, "A36");
+    strcpy(machine.zone[0].products[2].code, "A37");
+    strcpy(machine.zone[0].products[3].code, "A38");
+    strcpy(machine.zone[0].products[4].code, "A39");
+    strcpy(machine.zone[1].products[0].code, "A40");
+    strcpy(machine.zone[1].products[1].code, "A41");
+    strcpy(machine.zone[1].products[2].code, "A42");
+    strcpy(machine.zone[1].products[3].code, "A43");
+    strcpy(machine.zone[1].products[4].code, "A44");
 
-    maquina.zonas[0].productos[0].precio = 1.50;
-    maquina.zonas[0].productos[1].precio = 1.50;
-    maquina.zonas[0].productos[2].precio = 1.50;
-    maquina.zonas[0].productos[3].precio = 1.50;
-    maquina.zonas[0].productos[4].precio = 2.50;
-    maquina.zonas[1].productos[0].precio = 1.25;
-    maquina.zonas[1].productos[1].precio = 1.00;
-    maquina.zonas[1].productos[2].precio = 2.50;
-    maquina.zonas[1].productos[3].precio = 1.00;
-    maquina.zonas[1].productos[4].precio = 3.00;
+    machine.zone[0].products[0].price = 1.50;
+    machine.zone[0].products[1].price = 1.50;
+    machine.zone[0].products[2].price = 1.50;
+    machine.zone[0].products[3].price = 1.50;
+    machine.zone[0].products[4].price = 2.50;
+    machine.zone[1].products[0].price = 1.25;
+    machine.zone[1].products[1].price = 1.00;
+    machine.zone[1].products[2].price = 2.50;
+    machine.zone[1].products[3].price = 1.00;
+    machine.zone[1].products[4].price = 3.00;
 
-    maquina.zonas[0].productos[0].stock = 100;
-    maquina.zonas[0].productos[1].stock = 100;
-    maquina.zonas[0].productos[2].stock = 100;
-    maquina.zonas[0].productos[3].stock = 100;
-    maquina.zonas[0].productos[4].stock = 100;
-    maquina.zonas[1].productos[0].stock = 100;
-    maquina.zonas[1].productos[1].stock = 100;
-    maquina.zonas[1].productos[2].stock = 100;
-    maquina.zonas[1].productos[3].stock = 100;
-    maquina.zonas[1].productos[4].stock = 100;
+    machine.zone[0].products[0].stock = 100;
+    machine.zone[0].products[1].stock = 100;
+    machine.zone[0].products[2].stock = 100;
+    machine.zone[0].products[3].stock = 100;
+    machine.zone[0].products[4].stock = 100;
+    machine.zone[1].products[0].stock = 100;
+    machine.zone[1].products[1].stock = 100;
+    machine.zone[1].products[2].stock = 100;
+    machine.zone[1].products[3].stock = 100;
+    machine.zone[1].products[4].stock = 100;
 
-    maquina.zonas[0].productos[0].pin_motor = motor1;
-    maquina.zonas[0].productos[1].pin_motor = motor1;
-    maquina.zonas[0].productos[2].pin_motor = motor1;
-    maquina.zonas[0].productos[3].pin_motor = motor1;
-    maquina.zonas[0].productos[4].pin_motor = motor1;
-    maquina.zonas[1].productos[0].pin_motor = motor2;
-    maquina.zonas[1].productos[1].pin_motor = motor2;
-    maquina.zonas[1].productos[2].pin_motor = motor2;
-    maquina.zonas[1].productos[3].pin_motor = motor2;
-    maquina.zonas[1].productos[4].pin_motor = motor2;
+    machine.zone[0].products[0].pin_engine = engine1;
+    machine.zone[0].products[1].pin_engine = engine1;
+    machine.zone[0].products[2].pin_engine = engine1;
+    machine.zone[0].products[3].pin_engine = engine1;
+    machine.zone[0].products[4].pin_engine = engine1;
+    machine.zone[1].products[0].pin_engine = engine2;
+    machine.zone[1].products[1].pin_engine = engine2;
+    machine.zone[1].products[2].pin_engine = engine2;
+    machine.zone[1].products[3].pin_engine = engine2;
+    machine.zone[1].products[4].pin_engine = engine2;
 
-    maquina.zonas[0].productos[0].ton = 5000;
-    maquina.zonas[0].productos[1].ton = 5000;
-    maquina.zonas[0].productos[2].ton = 5000;
-    maquina.zonas[0].productos[3].ton = 5000;
-    maquina.zonas[0].productos[4].ton = 5000;
-    maquina.zonas[1].productos[0].ton = 5000;
-    maquina.zonas[1].productos[1].ton = 5000;
-    maquina.zonas[1].productos[2].ton = 5000;
-    maquina.zonas[1].productos[3].ton = 5000;
-    maquina.zonas[1].productos[4].ton = 5000;
-  */
-  ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-  /*
+    machine.zone[0].products[0].ton = 5000;
+    machine.zone[0].products[1].ton = 5000;
+    machine.zone[0].products[2].ton = 5000;
+    machine.zone[0].products[3].ton = 5000;
+    machine.zone[0].products[4].ton = 5000;
+    machine.zone[1].products[0].ton = 5000;
+    machine.zone[1].products[1].ton = 5000;
+    machine.zone[1].products[2].ton = 5000;
+    machine.zone[1].products[3].ton = 5000;
+    machine.zone[1].products[4].ton = 5000;
+
+    //Carga de datos
     eedirec = 0;
-    EEPROM.put(eedirec, maquina);
+    EEPROM.put(eedirec, machine);
     Serial.println("La eeprom se ha cargado");
     Serial.println("Ocupa: ");
-    Serial.println(sizeof(maquina));
+    Serial.println(sizeof(machine));
 
-    eedirec += sizeof(maquina);
-    EEPROM.put(eedirec, maquina);
+    //Datos para el reset
+    eedirec += sizeof(machine);
+    EEPROM.put(eedirec, machine);
     Serial.println("Se ha cargado la maquina de fabrica");
     eedirec = 0;
   */
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
   eedirec = 0;
-  EEPROM.get(eedirec, maquina);
+  EEPROM.get(eedirec, machine);
   Serial.println("Se ha cargado la maquina de la eeprom");
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -330,104 +410,104 @@ void setup()
 
 void loop()
 {
-  //Serial.println(sizeof(maquina));
-  l_varios.ups = lectura(&maquina.ups);
-  l_varios.temperatura[0] = lectura(&maquina.zonas[0].temperatura);
-  l_varios.temperatura[1] = lectura(&maquina.zonas[1].temperatura);
-  l_varios.humedad[0] = lectura(&maquina.zonas[0].humedad);
-  l_varios.humedad[1] = lectura(&maquina.zonas[1].humedad);
+  //Serial.println(sizeof(machine));
+  l_various.ups = measurement(&machine.ups);
+  l_various.temperature[0] = measurement(&machine.zone[0].temperature);
+  l_various.temperature[1] = measurement(&machine.zone[1].temperature);
+  l_various.humidity[0] = measurement(&machine.zone[0].humidity);
+  l_various.humidity[1] = measurement(&machine.zone[1].humidity);
 
-  e_varios.ups = error_ups(&maquina.ups, &l_varios.ups);
-  if (e_varios.ups)
-    estado_maquina = BAJA_TENSION;
+  e_various.ups = error_ups(&machine.ups, &l_various.ups);
+  if (e_various.ups)
+    machine_state = LOW_VOLTAGE;
   else
-    estado_maquina = BATERIA_OK;
+    machine_state = BATTERY_OK;
 
-  e_varios.temperatura[0] = error(&maquina.zonas[0].temperatura, &l_varios.temperatura[0], &con_temp_z1);
-  if (e_varios.temperatura[0])
-    estado_maquina = ERROR_T_Z1;
+  e_various.temperature[0] = error(&machine.zone[0].temperature, &l_various.temperature[0], &con_temp_z1);
+  if (e_various.temperature[0])
+    machine_state = ERROR_T_Z1;
 
-  e_varios.temperatura[1] = error(&maquina.zonas[1].temperatura, &l_varios.temperatura[1], &con_temp_z2);
-  if (e_varios.temperatura[1])
-    estado_maquina = ERROR_T_Z2;
+  e_various.temperature[1] = error(&machine.zone[1].temperature, &l_various.temperature[1], &con_temp_z2);
+  if (e_various.temperature[1])
+    machine_state = ERROR_T_Z2;
 
-  e_varios.humedad[0] = error(&maquina.zonas[0].humedad, &l_varios.humedad[0], &con_hum_z1);
-  if (e_varios.humedad[0])
-    estado_maquina = ERROR_H_Z1;
+  e_various.humidity[0] = error(&machine.zone[0].humidity, &l_various.humidity[0], &con_hum_z1);
+  if (e_various.humidity[0])
+    machine_state = ERROR_H_Z1;
 
-  e_varios.humedad[1] = error(&maquina.zonas[1].humedad, &l_varios.humedad[1], &con_hum_z2);
-  if (e_varios.humedad[1])
-    estado_maquina = ERROR_H_Z2;
+  e_various.humidity[1] = error(&machine.zone[1].humidity, &l_various.humidity[1], &con_hum_z2);
+  if (e_various.humidity[1])
+    machine_state = ERROR_H_Z2;
 
-  switch (estado_maquina)
+  switch (machine_state)
   {
-    case BAJA_TENSION:
-      //parpadeoLed(ton, tof);
-      parpadeo = parpadeoLed(1000, 5000);
-      digitalWrite(led_error, parpadeo);
-      digitalWrite(electrov1, LOW);
-      digitalWrite(electrov2, LOW);
-      digitalWrite(ventilador1, LOW);
-      digitalWrite(ventilador2, LOW);
-      digitalWrite(p_compresor, LOW);
-      comando = "Error de alimentacion";
-      serial_delay(&comando, 2000UL);
-      comando = "";
+    case LOW_VOLTAGE:
+      //ledBlink(ton, tof);
+      blink = ledBlink(1000, 5000);
+      digitalWrite(led_error, blink);
+      digitalWrite(solenoid1, LOW);
+      digitalWrite(solenoid2, LOW);
+      digitalWrite(ventilator1, LOW);
+      digitalWrite(ventilator2, LOW);
+      digitalWrite(p_compressor, LOW);
+      command = "Error de alimentacion";
+      serial_delay(&command, 2000UL);
+      command = "";
       break;
 
     case ERROR_T_Z1:
-      parpadeo = parpadeoLed(1000, 1000);
-      digitalWrite(led_error, parpadeo);
-      comando = "Error refrigeracion Zona 1";
-      serial_delay(&comando, 2000UL);
-      comando = "";
+      blink = ledBlink(1000, 1000);
+      digitalWrite(led_error, blink);
+      command = "Error refrigeration Zona 1";
+      serial_delay(&command, 2000UL);
+      command = "";
       break;
 
     case ERROR_T_Z2:
-      parpadeo = parpadeoLed(1000, 1000);
-      digitalWrite(led_error, parpadeo);
-      comando = "Error refrigeracion Zona 2";
-      serial_delay(&comando, 2000UL);
-      comando = "";
+      blink = ledBlink(1000, 1000);
+      digitalWrite(led_error, blink);
+      command = "Error refrigeration Zona 2";
+      serial_delay(&command, 2000UL);
+      command = "";
       break;
 
     case ERROR_H_Z1:
-      parpadeo = parpadeoLed(5000, 1000);
-      digitalWrite(led_error, parpadeo);
-      comando = "Error humedad Zona 1";
-      serial_delay(&comando, 2000UL);
-      comando = "";
+      blink = ledBlink(5000, 1000);
+      digitalWrite(led_error, blink);
+      command = "Error humedad Zona 1";
+      serial_delay(&command, 2000UL);
+      command = "";
       break;
 
     case ERROR_H_Z2:
-      parpadeo = parpadeoLed(5000, 1000);
-      digitalWrite(led_error, parpadeo);
-      comando = "Error humedad Zona 2";
-      serial_delay(&comando, 2000UL);
-      comando = "";
+      blink = ledBlink(5000, 1000);
+      digitalWrite(led_error, blink);
+      command = "Error humedad Zona 2";
+      serial_delay(&command, 2000UL);
+      command = "";
       break;
 
-    case BATERIA_OK:
-      maquina.zonas[0].refrigeracion = estado(&maquina.zonas[0].temperatura, &l_varios.temperatura[0]);
-      maquina.zonas[1].refrigeracion = estado(&maquina.zonas[1].temperatura, &l_varios.temperatura[1]);
-      maquina.zonas[0].ventilador = estado(&maquina.zonas[0].humedad, &l_varios.humedad[0]);
-      maquina.zonas[1].ventilador = estado(&maquina.zonas[1].humedad, &l_varios.humedad[1]);
+    case BATTERY_OK:
+      machine.zone[0].refrigeration = estate(&machine.zone[0].temperature, &l_various.temperature[0]);
+      machine.zone[1].refrigeration = estate(&machine.zone[1].temperature, &l_various.temperature[1]);
+      machine.zone[0].ventilator = estate(&machine.zone[0].humidity, &l_various.humidity[0]);
+      machine.zone[1].ventilator = estate(&machine.zone[1].humidity, &l_various.humidity[1]);
 
-      digitalWrite(electrov1, maquina.zonas[0].refrigeracion);
-      digitalWrite(electrov2, maquina.zonas[1].refrigeracion);
-      digitalWrite(ventilador1, maquina.zonas[0].ventilador);
-      digitalWrite(ventilador2, maquina.zonas[1].ventilador);
+      digitalWrite(solenoid1, machine.zone[0].refrigeration);
+      digitalWrite(solenoid2, machine.zone[1].refrigeration);
+      digitalWrite(ventilator1, machine.zone[0].ventilator);
+      digitalWrite(ventilator2, machine.zone[1].ventilator);
 
-      if ((maquina.zonas[0].refrigeracion == true) || (maquina.zonas[1].refrigeracion == true))
-        digitalWrite(p_compresor, HIGH);
+      if ((machine.zone[0].refrigeration == true) || (machine.zone[1].refrigeration == true))
+        digitalWrite(p_compressor, HIGH);
       else
-        digitalWrite(p_compresor, LOW);
+        digitalWrite(p_compressor, LOW);
 
-      if (venta != SELECCION) {
-        if (serialEvent(&comando) == 1)
+      if (sale != SELECTION) {
+        if (serialEvent(&command) == 1)
         {
-          Serial.println("ECO: " + comando);
-          if (comando == "HELP")
+          Serial.println("ECO: " + command);
+          if (command == "HELP")
           {
             Serial.println(F("----------------------------------------------------------------------------------------------------"));
             Serial.println(F("----------------------------------------------------------------------------------------------------"));
@@ -451,7 +531,7 @@ void loop()
             Serial.println(F("Siendo Z:                            -> La zona"));
             Serial.println(F("Siendo MIN:                          -> La temperatura minima deseada"));
             Serial.println(F("Siendo MAX:                          -> La temperatura maxima deseada"));
-            Serial.println(F("Siendo H.XX:                         -> La histeresis"));
+            Serial.println(F("Siendo H.XX:                         -> La hysteresis"));
             Serial.println();
             Serial.println(F("STOCK        Z:XXX-COD               -> Repone el stock del producto indicado"));
             Serial.println(F("Siendo Z:                            -> La zona, refrescos zona 1, comida zona 2"));
@@ -469,221 +549,221 @@ void loop()
             Serial.println();
             Serial.println(F("HORA                                 -> Muestra la hora actual"));
             Serial.println(F("VER_STOCK                            -> Muestra el stock restante te todos los articulos"));
-            Serial.println(F("VER_CONFIG                           -> Muestra la configuracion de la maquina actual"));
-            Serial.println(F("RESET                                -> Vuelve la maquina a la configuracion de serie"));
+            Serial.println(F("VER_CONFIG                           -> Muestra la configuracion de la machine actual"));
+            Serial.println(F("RESET                                -> Vuelve la machine a la configuracion de serie"));
             Serial.println(F("----------------------------------------------------------------------------------------------------"));
-            comando = "";
+            command = "";
           }
-          else if (comando.substring(0, (comando.indexOf(" "))) == "M_ON")
+          else if (command.substring(0, (command.indexOf(" "))) == "M_ON")
           {
-            maquina.power_mode = true;
-            EEPROM.put(0, maquina);
+            machine.power_mode = true;
+            EEPROM.put(0, machine);
             Serial.println(F("Se han actualizado los datos en la eeprom"));
-            comando = "";
+            command = "";
           }
-          else if (comando.substring(0, (comando.indexOf(" "))) == "M_OFF")
+          else if (command.substring(0, (command.indexOf(" "))) == "M_OFF")
           {
-            maquina.power_mode = false;
-            EEPROM.put(0, maquina);
+            machine.power_mode = false;
+            EEPROM.put(0, machine);
             Serial.println(F("Se han actualizado los datos en la eeprom"));
-            comando = "";
+            command = "";
           }
-          else if (comando.substring(0, (comando.indexOf(" "))) == "SET_TIME_ON")
+          else if (command.substring(0, (command.indexOf(" "))) == "SET_TIME_ON")
           {
-            maquina.on = config_horario(&comando);
+            machine.on = config_schedule(&command);
             Serial.print(F("La hora introducida de inicio es: "));
-            Serial.print(maquina.on.hora);
+            Serial.print(machine.on.hora);
             Serial.print(F(":"));
-            Serial.print(maquina.on.minuto);
+            Serial.print(machine.on.minuto);
             Serial.print(F(":"));
-            Serial.println(maquina.on.segundo);
-            EEPROM.put(0, maquina);
+            Serial.println(machine.on.segundo);
+            EEPROM.put(0, machine);
             Serial.println(F("Se han actualizado los datos en la eeprom"));
-            comando = "";
+            command = "";
           }
-          else if (comando.substring(0, (comando.indexOf(" "))) == "SET_TIME_OF")
+          else if (command.substring(0, (command.indexOf(" "))) == "SET_TIME_OF")
           {
-            maquina.of = config_horario(&comando);
+            machine.of = config_schedule(&command);
             Serial.print(F("La hora introducida de bajo consumo es: "));
-            Serial.print(maquina.of.hora);
+            Serial.print(machine.of.hora);
             Serial.print(":");
-            Serial.print(maquina.of.minuto);
+            Serial.print(machine.of.minuto);
             Serial.print(":");
-            Serial.println(maquina.of.segundo);
-            EEPROM.put(0, maquina);
+            Serial.println(machine.of.segundo);
+            EEPROM.put(0, machine);
             Serial.println(F("Se han actualizado los datos en la eeprom"));
-            comando = "";
+            command = "";
           }
-          else if (comando.substring(0, (comando.indexOf(" "))) == "SET_TEM")
+          else if (command.substring(0, (command.indexOf(" "))) == "SET_TEM")
           {
-            zona = localizador_zona(&comando);
-            maquina.zonas[zona].temperatura.objetivo = parametro_introducido(&comando, ":");
+            zone = trace_zone(&command);
+            machine.zone[zone].temperature.objective = parameter_introduced(&command, ":");
             Serial.print(F("Se ha modificado la temperatura objetivo en la zona: "));
-            Serial.println(zona + 1);
+            Serial.println(zone + 1);
             Serial.print(F("La temperatura objetivo introducida es: "));
-            Serial.println(maquina.zonas[zona].temperatura.objetivo);
-            EEPROM.put(0, maquina);
+            Serial.println(machine.zone[zone].temperature.objective);
+            EEPROM.put(0, machine);
             Serial.println(F("Se han actualizado los datos en la eeprom"));
-            comando = "";
+            command = "";
           }
-          else if (comando.substring(0, (comando.indexOf(" "))) == "SET_HUM")
+          else if (command.substring(0, (command.indexOf(" "))) == "SET_HUM")
           {
-            zona = localizador_zona(&comando);
-            maquina.zonas[zona].humedad.objetivo = parametro_introducido(&comando, ":");
+            zone = trace_zone(&command);
+            machine.zone[zone].humidity.objective = parameter_introduced(&command, ":");
             Serial.print(F("Se ha modificado la humedad objetivo en la zona: "));
-            Serial.println(zona + 1);
-            Serial.print(F("La humead objetivo introducida es: "));
-            Serial.println(maquina.zonas[zona].humedad.objetivo);
-            EEPROM.put(0, maquina);
+            Serial.println(zone + 1);
+            Serial.print(F("La humedad objetivo introducida es: "));
+            Serial.println(machine.zone[zone].humidity.objective);
+            EEPROM.put(0, machine);
             Serial.println(F("Se han actualizado los datos en la eeprom"));
-            comando = "";
+            command = "";
           }
-          else if (comando.substring(0, (comando.indexOf(" "))) == "CONFIG_HUM")
+          else if (command.substring(0, (command.indexOf(" "))) == "CONFIG_HUM")
           {
-            zona = localizador_zona(&comando);
-            maquina.zonas[zona].humedad.ofset = parametro_introducido(&comando, ":");
+            zone = trace_zone(&command);
+            machine.zone[zone].humidity.ofset = parameter_introduced(&command, ":");
             Serial.print(F("Se ha modificado la ofset de la humedad en la zona: "));
-            Serial.println(zona + 1);
+            Serial.println(zone + 1);
             Serial.print(F("El ofset introducido es: "));
-            Serial.println(maquina.zonas[zona].humedad.ofset);
-            EEPROM.put(0, maquina);
+            Serial.println(machine.zone[zone].humidity.ofset);
+            EEPROM.put(0, machine);
             Serial.println(F("Se han actualizado los datos en la eeprom"));
-            comando = "";
+            command = "";
           }
-          else if (comando.substring(0, (comando.indexOf(" "))) == "CONFIG_TEM")
+          else if (command.substring(0, (command.indexOf(" "))) == "CONFIG_TEM")
           {
-            zona = localizador_zona(&comando);
-            config_parametros_temp(&comando, &maquina.zonas[zona].temperatura);
+            zone = trace_zone(&command);
+            config_parameters_temp(&command, &machine.zone[zone].temperature);
             Serial.print(F("Se ha modificado la configuracion de la zona: "));
-            Serial.println(zona + 1);
+            Serial.println(zone + 1);
             Serial.print(F("La temperatura minima introducida es: "));
-            Serial.println(maquina.zonas[zona].temperatura.min);
+            Serial.println(machine.zone[zone].temperature.min);
             Serial.print(F("La temperatura maxima introducida es: "));
-            Serial.println(maquina.zonas[zona].temperatura.max);
+            Serial.println(machine.zone[zone].temperature.max);
             Serial.print(F("La histerisis introducida es: "));
-            Serial.println(maquina.zonas[zona].temperatura.histeresis);
-            EEPROM.put(0, maquina);
+            Serial.println(machine.zone[zone].temperature.hysteresis);
+            EEPROM.put(0, machine);
             Serial.println(F("Se han actualizado los datos en la eeprom"));
-            comando = "";
+            command = "";
           }
-          else if (comando.substring(0, (comando.indexOf(" "))) == "STOCK")
+          else if (command.substring(0, (command.indexOf(" "))) == "STOCK")
           {
-            zona = localizador_zona(&comando);
-            String str = comando.substring((comando.indexOf("-")) + 1);
+            zone = trace_zone(&command);
+            String str = command.substring((command.indexOf("-")) + 1);
             //str.trim();
-            int posicion = localicar_producto(maquina.zonas[zona].productos, &str);
-            int stock = parametro_introducido(&comando, ":");
-            maquina.zonas[zona].productos[posicion].stock = stock;
+            int posicion = trace_product(machine.zone[zone].products, &str);
+            int stock = parameter_introduced(&command, ":");
+            machine.zone[zone].products[posicion].stock = stock;
             Serial.print(F("Se ha modificado el stock del producto: "));
-            Serial.println(maquina.zonas[zona].productos[posicion].descripcion);
+            Serial.println(machine.zone[zone].products[posicion].description);
             Serial.print(F("El stock actual es: "));
-            Serial.println(maquina.zonas[zona].productos[posicion].stock);
-            EEPROM.put(0, maquina);
+            Serial.println(machine.zone[zone].products[posicion].stock);
+            EEPROM.put(0, machine);
             Serial.println(F("Se han actualizado los datos en la eeprom"));
-            comando = "";
+            command = "";
           }
-          else if (comando.substring(0, (comando.indexOf(" "))) == "HORA")
+          else if (command.substring(0, (command.indexOf(" "))) == "HORA")
           {
             Serial.print(F("La hora atual es:"));
-            Serial.print(maquina.reloj_actual.hora);
+            Serial.print(machine.actual_hour.hora);
             Serial.print(F(":"));
-            Serial.print(maquina.reloj_actual.minuto);
+            Serial.print(machine.actual_hour.minuto);
             Serial.print(F(":"));
-            Serial.println(maquina.reloj_actual.segundo);
-            comando = "";
+            Serial.println(machine.actual_hour.segundo);
+            command = "";
           }
-          else if (comando.substring(0, (comando.indexOf(" "))) == "VER_STOCK")
+          else if (command.substring(0, (command.indexOf(" "))) == "VER_STOCK")
           {
             for (int r = 0; r < 2; r++) {
               for (int w = 0; w < 5; w++) {
-                Serial.println(maquina.zonas[r].productos[w].descripcion);
-                Serial.println(maquina.zonas[r].productos[w].stock);
+                Serial.println(machine.zone[r].products[w].description);
+                Serial.println(machine.zone[r].products[w].stock);
               }
             }
-            comando = "";
+            command = "";
           }
-          else if (comando.substring(0, (comando.indexOf(" "))) == "VER_CONFIG")
+          else if (command.substring(0, (command.indexOf(" "))) == "VER_CONFIG")
           {
             Serial.print(F("La hora de inicio es:"));
-            Serial.print(maquina.on.hora);
+            Serial.print(machine.on.hora);
             Serial.print(F(":"));
-            Serial.print(maquina.on.minuto);
+            Serial.print(machine.on.minuto);
             Serial.print(F(":"));
-            Serial.println(maquina.on.segundo);
+            Serial.println(machine.on.segundo);
             Serial.println();
             Serial.print(F("La hora de bajo consumo es:"));
-            Serial.print(maquina.of.hora);
+            Serial.print(machine.of.hora);
             Serial.print(F(":"));
-            Serial.print(maquina.of.minuto);
+            Serial.print(machine.of.minuto);
             Serial.print(F(":"));
-            Serial.println(maquina.of.segundo);
+            Serial.println(machine.of.segundo);
             Serial.println();
             Serial.println(F("La parametros de la zona 1 son:"));
             Serial.println(F("Temperatura:"));
             Serial.print(F("Objetivo: "));
-            Serial.println(maquina.zonas[0].temperatura.objetivo);
+            Serial.println(machine.zone[0].temperature.objective);
             Serial.print(F("Minima: "));
-            Serial.println(maquina.zonas[0].temperatura.min);
+            Serial.println(machine.zone[0].temperature.min);
             Serial.print(F("Maxima: "));
-            Serial.println(maquina.zonas[0].temperatura.max);
+            Serial.println(machine.zone[0].temperature.max);
             Serial.print(F("Histeresis: "));
-            Serial.println(maquina.zonas[0].temperatura.histeresis);
+            Serial.println(machine.zone[0].temperature.hysteresis);
             Serial.println(F("Humedad:"));
             Serial.print(F("Objetivo: "));
-            Serial.println(maquina.zonas[0].humedad.objetivo);
+            Serial.println(machine.zone[0].humidity.objective);
             Serial.print(F("Ofset: "));
-            Serial.println(maquina.zonas[0].humedad.ofset);
+            Serial.println(machine.zone[0].humidity.ofset);
             Serial.print(F("Histeresis: "));
-            Serial.println(maquina.zonas[0].humedad.histeresis);
+            Serial.println(machine.zone[0].humidity.hysteresis);
             Serial.println();
             Serial.println(F("La parametros de la zona 2 son:"));
             Serial.println(F("Temperatura:"));
             Serial.print(F("Objetivo: "));
-            Serial.println(maquina.zonas[1].temperatura.objetivo);
+            Serial.println(machine.zone[1].temperature.objective);
             Serial.print(F("Minima: "));
-            Serial.println(maquina.zonas[1].temperatura.min);
+            Serial.println(machine.zone[1].temperature.min);
             Serial.print(F("Maxima: "));
-            Serial.println(maquina.zonas[1].temperatura.max);
+            Serial.println(machine.zone[1].temperature.max);
             Serial.print(F("Histeresis: "));
-            Serial.println(maquina.zonas[1].temperatura.histeresis);
+            Serial.println(machine.zone[1].temperature.hysteresis);
             Serial.println(F("Humedad:"));
             Serial.print(F("Objetivo: "));
-            Serial.println(maquina.zonas[1].humedad.objetivo);
+            Serial.println(machine.zone[1].humidity.objective);
             Serial.print(F("Ofset: "));
-            Serial.println(maquina.zonas[1].humedad.ofset);
+            Serial.println(machine.zone[1].humidity.ofset);
             Serial.print(F("Histeresis: "));
-            Serial.println(maquina.zonas[1].humedad.histeresis);
+            Serial.println(machine.zone[1].humidity.hysteresis);
             Serial.println();
-            if (maquina.power_mode == true)Serial.println(F("El control de horario esta activado."));
-            else if (maquina.power_mode == false)Serial.println(F("El control de horario esta desactivado."));
-            comando = "";
+            if (machine.power_mode == true)Serial.println(F("El control de horario esta activado."));
+            else if (machine.power_mode == false)Serial.println(F("El control de horario esta desactivado."));
+            command = "";
           }
-          else if (comando.substring(0, (comando.indexOf(" "))) == "RESET")
+          else if (command.substring(0, (command.indexOf(" "))) == "RESET")
           {
             aux_error = true;
             cont_res = millis();
             Serial.println(F("Pulsa el boton RESET durante al menos 1s:"));
-            comando = "";
+            command = "";
           }
           else
           {
             Serial.println(F("No has introducido un codigo valido"));
-            comando = "";
+            command = "";
           }
-          //comando = "";
+          //command = "";
           Serial.println(F("----------------------------------------------------------------------------------------------------"));
         }
 
         if (aux_error == true) {
           if ((millis() - cont_res) <= 20000)
           {
-            //tpulsado_res = leerBoton(b_reset);
-            if (leerBoton(b_reset) > 1000)
+            //tpulsado_res = readButton(b_reset);
+            if (readButton(b_reset) > 1000)
             {
-              eedirec = sizeof(maquina);
-              EEPROM.get(eedirec, maquina);
-              EEPROM.put(0, maquina);
-              Serial.println("Se ha reseteado la maquina");
+              eedirec = sizeof(machine);
+              EEPROM.get(eedirec, machine);
+              EEPROM.put(0, machine);
+              Serial.println("Se ha reseteado la machine");
               Serial.println(F("----------------------------------------------------------------------------------------------------"));
               eedirec = 0;
               aux_error = false;
@@ -698,24 +778,24 @@ void loop()
         }
       }
 
-      if (maquina.power_mode == true) contr_h = horario(&maquina.on, &maquina.of, &maquina.reloj_actual);
-      else if (maquina.power_mode == false) contr_h = MODO_ON;
+      if (machine.power_mode == true) contr_h = schedule(&machine.on, &machine.of, &machine.actual_hour);
+      else if (machine.power_mode == false) contr_h = MODE_ON;
 
       switch (contr_h)
       {
-        case MODO_ON:
-          switch (venta)
+        case MODE_ON:
+          switch (sale)
           {
-            case IMPORTE:
-              tpulsado = leerBoton(selec_monedas_boton);
-              if (tpulsado > 0)
+            case AMOUNT:
+              tpulsed = readButton(selec_coins_button);
+              if (tpulsed > 0)
               {
-                maquina.credito += importe(tpulsado);
-                if (maquina.credito > 0)
+                machine.credit += amount(tpulsed);
+                if (machine.credit > 0)
                 {
                   Serial.println(F("El importe introducidos es: "));
-                  Serial.println(maquina.credito);
-                  venta = M_PROD;
+                  Serial.println(machine.credit);
+                  sale = M_PROD;
                 }
               }
               break;
@@ -734,18 +814,18 @@ void loop()
               Serial.println(F("      A43       ->Precio:1.00€            -> Pipas"));
               Serial.println(F("      A44       ->Precio:3.00€            -> Nachos de queso"));
               Serial.println(F("****************************************************************"));
-              venta = SELECCION;
+              sale = SELECTION;
               break;
 
-            case SELECCION:
+            case SELECTION:
               if (serialEvent(&pro_intro) == 1)
               {
-                zona = 0;
+                zone = 0;
                 Serial.println("ECO: " + pro_intro);
-                posi = localicar_producto(maquina.zonas[zona].productos, &pro_intro);
+                posi = trace_product(machine.zone[zone].products, &pro_intro);
                 if (posi < 0) {
-                  zona ++;
-                  posi = localicar_producto(maquina.zonas[zona].productos, &pro_intro);
+                  zone ++;
+                  posi = trace_product(machine.zone[zone].products, &pro_intro);
                   pro_intro = "";
                 }
                 else {
@@ -754,13 +834,13 @@ void loop()
 
                 if (posi >= 0)
                 {
-                  if (maquina.zonas[zona].productos[posi].stock >= 1) {
+                  if (machine.zone[zone].products[posi].stock >= 1) {
                     Serial.println(F("Has seleccionado el producto: "));
-                    Serial.println(maquina.zonas[zona].productos[posi].descripcion);
+                    Serial.println(machine.zone[zone].products[posi].description);
                     Serial.println(F("Precio: "));
-                    Serial.println(maquina.zonas[zona].productos[posi].precio);
+                    Serial.println(machine.zone[zone].products[posi].price);
                     Serial.println(F("****************************************************************"));
-                    venta = COMPARACION;
+                    sale = COMPARISON;
                   }
                   else {
                     Serial.println(F("No hay stock del producto solicitado"));
@@ -777,79 +857,79 @@ void loop()
               }
               break;
 
-            case COMPARACION:
-              comp = comparacion(maquina.zonas[zona].productos[posi].precio, maquina.credito);
+            case COMPARISON:
+              comp = comparison(machine.zone[zone].products[posi].price, machine.credit);
               if (comp == true)
               {
                 Serial.println(F("Has introducido suficiente dinero"));
                 Serial.println(F("****************************************************************"));
-                conMotor = millis();
-                venta = MOTOR;
+                conEngine = millis();
+                sale = ENGINE;
               }
               else if (comp == false)
               {
                 Serial.println(F("No has introducido suficiente dinero"));
                 Serial.println(F("****************************************************************"));
-                venta = IMPORTE;
+                sale = AMOUNT;
               }
               break;
 
-            case MOTOR:
-              if (millis() - conMotor < maquina.zonas[zona].productos[posi].ton)
+            case ENGINE:
+              if (millis() - conEngine < machine.zone[zone].products[posi].ton)
               {
-                digitalWrite(maquina.zonas[zona].productos[posi].pin_motor, parpadeoLed(500, 500));
+                digitalWrite(machine.zone[zone].products[posi].pin_engine, ledBlink(500, 500));
               }
               else
               {
-                digitalWrite(maquina.zonas[zona].productos[posi].pin_motor, LOW);
-                conCaida = millis();
-                venta = CAIDA;
+                digitalWrite(machine.zone[zone].products[posi].pin_engine, LOW);
+                conDrop = millis();
+                sale = DROP;
               }
               break;
 
-            case CAIDA:
-              if (millis() - conCaida <= tCaida)
+            case DROP:
+              if (millis() - conDrop <= tDrop)
               {
-                if (leerBoton(caiProducto) >= seguridadCaida)
+                if (readButton(caiProduct) >= securityDrop)
                 {
-                  maquina.zonas[zona].productos[posi].stock -= 1;
-                  conCambio = millis();
-                  EEPROM.put(0, maquina);
+                  machine.zone[zone].products[posi].stock -= 1;
+                  conChange = millis();
+                  EEPROM.put(0, machine);
                   Serial.println(F("Se han actualizado los datos en la eeprom"));
-                  venta = DEVO_CAM;
+                  sale = RETURN_EXCHAN;
                 }
               }
               else
               {
-                conCambio = millis();
-                venta = DEVO_IMPO;
+                conChange = millis();
+                sale = REFUND_AMOUNT;
               }
               break;
 
-            case DEVO_IMPO:
-              camTiempo = cambioSeg(maquina.credito);
-              if (millis() - conCambio <= camTiempo)
+            case REFUND_AMOUNT:
+              camTime = changeSeg(machine.credit);
+              if (millis() - conChange <= camTime)
               {
-                digitalWrite(selec_monedas_led, HIGH);
+                digitalWrite(selec_coins_led, HIGH);
               }
               else
               {
                 Serial.println(F("El producto no ha sido dispensado."));
                 Serial.println(F("El cambio es: "));
-                Serial.println(maquina.credito);
+                Serial.println(machine.credit);
                 Serial.println(F("****************************************************************"));
-                digitalWrite(selec_monedas_led, LOW);
-                maquina.credito = 0;
-                venta = IMPORTE;
+                digitalWrite(selec_coins_led, LOW);
+                machine.credit = 0;
+                sale = AMOUNT;
               }
               break;
 
-            case DEVO_CAM:
-              cambEuro = cambio(maquina.zonas[zona].productos[posi].precio, maquina.credito);
-              camTiempo = cambioSeg(cambEuro);
-              if (millis() - conCambio <= camTiempo)
+            case RETURN_EXCHAN:
+              cambEuro = change(machine.zone[zone].products[posi].price, machine.credit);
+              camTime = changeSeg(cambEuro);
+              if (millis() - conChange <= camTime)
               {
-                digitalWrite(selec_monedas_led, HIGH);
+                digitalWrite(selec_coins_led, HIGH);
               }
               else
               {
@@ -857,18 +937,18 @@ void loop()
                 Serial.println(F("El cambio es: "));
                 Serial.println(cambEuro);
                 Serial.print(F("Quedan:"));
-                Serial.print(maquina.zonas[zona].productos[posi].stock);
+                Serial.print(machine.zone[zone].products[posi].stock);
                 Serial.println(" unidades");
                 Serial.println(F("****************************************************************"));
-                digitalWrite(selec_monedas_led, LOW);
-                maquina.credito = 0;
-                venta = IMPORTE;
+                digitalWrite(selec_coins_led, LOW);
+                machine.credit = 0;
+                sale = AMOUNT;
               }
               break;
           }
           break;
 
-        case B_COSUMO:
+        case L_COSUM:
 
           break;
       }
@@ -876,7 +956,12 @@ void loop()
   }
 }
 
-void millisReloj(void)
+void millisClock(void)
+/*
+Funcion que mantiene el reloj actualizado 
+
+Function that keeps the clock updated
+*/
 {
   blinkCount++;
 
@@ -906,131 +991,215 @@ void millisReloj(void)
     reloj1.hora = 0;
   }
 
-  maquina.reloj_actual.milisegundo = reloj1.milisegundo;
-  maquina.reloj_actual.segundo = reloj1.segundo;
-  maquina.reloj_actual.minuto = reloj1.minuto;
-  maquina.reloj_actual.hora = reloj1.hora;
+  machine.actual_hour.milisegundo = reloj1.milisegundo;
+  machine.actual_hour.segundo = reloj1.segundo;
+  machine.actual_hour.minuto = reloj1.minuto;
+  machine.actual_hour.hora = reloj1.hora;
 
   interrupts();
 }
 
-float lectura(sensor *temp)
+float measurement(sensor *temp)
+/*
+Funcion para realizar las medidas de los sensores
+Argumentos:
+struct sensor
+
+Function to perform sensor measurements
+Arguments:
+struct sensor
+*/
 {
-  static float lectura;
+  static float measurement;
   static float o_min = (1023.0 / 5.0) * temp->ofset;
-  lectura = analogRead(temp->pin);
-  lectura = mapFloat(lectura, o_min, 1023, temp->min, temp->max);
-  return lectura;
+  measurement = analogRead(temp->pin);
+  measurement = mapFloat(measurement, o_min, 1023, temp->min, temp->max);
+  return measurement;
 }
 
-bool estado(sensor *temp, float *lectura)
+bool estate(sensor *temp, float *measurement)
+/*
+Funcion que nos devuele el estado segun lecturas
+Argumentos:
+struct sensor
+measurement -- medida leida de los sensores
+
+Function that returns the state according to readings
+Arguments:
+structure sensor
+measurement -- measurement read from sensors
+*/
 {
-  static bool estado;
-  if (*lectura < (temp->objetivo - temp->histeresis) && estado == true)
-    estado = false;
-  else if (*lectura > (temp->objetivo - temp->histeresis) && estado == false)
-    estado = true;
+  static bool estate;
+  if (*measurement < (temp->objective - temp->hysteresis) && estate == true)
+    estate = false;
+  else if (*measurement > (temp->objective - temp->hysteresis) && estate == false)
+    estate = true;
 
-  return estado;
+  return estate;
 }
 
-bool error_ups(sensor *temp, float *lectura)
+bool error_ups(sensor *temp, float *measurement)
+/*
+Funcion que nos devuele el posible error del ups
+Argumentos:
+struct sensor
+measurement -- medida leida de los sensores
+
+Function that returns the possible error of the ups
+Arguments:
+structure sensor
+measurement -- measurement read from sensors
+*/
 {
   static unsigned long cont;
   static bool error;
-  if (*lectura > temp->peligro)
+  if (*measurement > temp->danger)
   {
     cont = millis();
     error = false;
   }
-  else if (*lectura < temp->peligro)
+  else if (*measurement < temp->danger)
   {
-    if (millis() - cont >= temp->ms_error && *lectura < temp->peligro)
+    if (millis() - cont >= temp->ms_error && *measurement < temp->danger)
       error = true;
   }
   return error;
 }
 
-bool error(sensor *temp, float *lectura, unsigned long *cont)
+bool error(sensor *temp, float *measurement, unsigned long *cont)
+/*
+Funcion que nos devuele el posible error de los sensores
+Argumentos:
+struct sensor
+measurement -- medida leida de los sensores
+cont -- contador para diferentes sensores
+
+Function that returns the possible error of the sensors
+Arguments:
+structure sensor
+measurement -- measurement read from sensors
+cont -- counter for diferent sensors
+*/
 {
   static bool error;
-  if (*lectura < temp->peligro)
+  if (*measurement < temp->danger)
   {
     *cont = millis();
     error = false;
   }
-  else if (*lectura > temp->peligro)
+  else if (*measurement > temp->danger)
   {
-    if (millis() - *cont >= temp->ms_error && *lectura > temp->peligro)
+    if (millis() - *cont >= temp->ms_error && *measurement > temp->danger)
       error = true;
   }
   return error;
 }
 
-int parpadeoLed(unsigned long ton, unsigned long tof)
-{
-  static unsigned long tantes;
-  static int estadoled;
+int ledBlink(unsigned long ton, unsigned long tof)
+/*
+Funcion para hacer un parpadeo en los leds
+Argumentos:
+ton -- tiempo on
+tof -- tiempo of
 
-  if (estadoled == HIGH)
+Function to make a blink in the leds
+Arguments:
+ton -- time on
+tof -- time of
+*/
+{
+  static unsigned long tbefore;
+  static int ledstate;
+
+  if (ledstate == HIGH)
   {
-    if (millis() - tantes >= ton)
+    if (millis() - tbefore >= ton)
     {
-      estadoled = LOW;
-      tantes = millis();
+      ledstate = LOW;
+      tbefore = millis();
     }
   }
-  else if (estadoled == LOW)
+  else if (ledstate == LOW)
   {
-    if (millis() - tantes >= tof)
+    if (millis() - tbefore >= tof)
     {
-      estadoled = HIGH;
-      tantes = millis();
+      ledstate = HIGH;
+      tbefore = millis();
     }
   }
-  return estadoled;
+  return ledstate;
 }
 
-unsigned long leerBoton(int input)
-{
-  static int estadoAnterior = HIGH;
-  static int estadoActual;
-  static unsigned long cont;
-  unsigned long tiempoPulsado = 0;
-  estadoActual = digitalRead(input);
+unsigned long readButton(int input)
+/*
+Funcion que nos devuele el tiempo trascurrido pulsando un boton
+Argumentos:
+input -- entrada
 
-  if (estadoActual != estadoAnterior)
+Function that returns the elapsed time by pressing a button
+Arguments:
+input -- input
+*/
+{
+  static int previusState = HIGH;
+  static int actualState;
+  static unsigned long cont;
+  unsigned long timePressed = 0;
+  actualState = digitalRead(input);
+
+  if (actualState != previusState)
   {
-    if (estadoAnterior == HIGH && estadoActual == LOW)
+    if (previusState == HIGH && actualState == LOW)
     {
       cont = millis();
     }
-    else if (estadoAnterior == LOW && estadoActual == HIGH)
+    else if (previusState == LOW && actualState == HIGH)
     {
-      tiempoPulsado = millis() - cont;
+      timePressed = millis() - cont;
     }
   }
-  estadoAnterior = estadoActual;
-  return tiempoPulsado;
+  previusState = actualState;
+  return timePressed;
 }
 
-bool comparacion(float precio, float importe)
+bool comparison(float price, float amount)
+/*
+Funcion que nos devuelve "true" si el importe es mayor al precio
+Argumentos:
+price -- precio
+amount -- importe
+
+Function that returns "true" if the amount is greater than the price
+Arguments:
+price -- price
+amount -- amount
+*/
 {
   static bool comp;
-  if (importe < precio)
+  if (amount < price)
     comp = false;
-  if (importe > precio)
+  if (amount > price)
     comp = true;
   return comp;
 }
 
-float importe(unsigned long tiempo)
+float amount(unsigned long time)
+/*
+Funcion que convierte el timpo en euros
+Argumentos:
+time - tiempo transcurrido
+
+Function that converts time into euros
+Arguments:
+time - time
+*/
 {
   static int cent;
   static float euro;
-  if (tiempo >= 100)
+  if (time >= 100)
   { //los tiempos estan modificados porque eran muy largos
-    cent = 1 * (tiempo / 100);
+    cent = 1 * (time / 100);
     euro = 5 * cent * 0.01;
   }
   else
@@ -1040,21 +1209,41 @@ float importe(unsigned long tiempo)
   return euro;
 }
 
-float cambio(float precio, float euro)
+float change(float price, float euro)
+/*
+Funcion que calcula el cambio
+Argumentos:
+price -- precio
+euro -- importe introducido
+
+Function that calculates the change
+Arguments:
+price -- price
+euro -- entered amount
+*/
 {
-  static float cambio;
-  if (euro >= precio)
+  static float change;
+  if (euro >= price)
   {
-    cambio = (euro - precio);
+    change = (euro - price);
   }
   else
   {
-    cambio = euro;
+    change = euro;
   }
-  return cambio;
+  return change;
 }
 
-float cambioSeg(float cam)
+float changeSeg(float cam)
+/*
+Funcion que calcula el cambio en segundos
+Argumentos:
+cam -- cambio en euros
+
+Function that calculates the change in seconds
+Arguments:
+cam -- change in euros
+*/
 {
   static float camseg;
   camseg = (cam * 100 * 500) / 5;
@@ -1062,6 +1251,17 @@ float cambioSeg(float cam)
 }
 
 byte serialEvent(String *com)
+/*
+Funcion para leer el teclado
+Si se ha escrito algo devolvera un 1, de no ser asi un 0
+Argumentos:
+com -- string donde se guardaran los datos introducidos
+
+Function to read the keyboard
+If something has been written it will return a 1, otherwise a 0
+Arguments:
+com -- string where the entered data will be saved
+*/
 {
   static char inChar;
   while (Serial.available() > 0)
@@ -1077,9 +1277,18 @@ byte serialEvent(String *com)
   return 0;
 }
 
-reloj config_horario(String *cmd)
+Clock config_schedule(String *cmd)
+/*
+Funcion para configurar el horario de la maquina
+Argumentos:
+com -- comando
+
+Function to set the time of the machine
+Arguments:
+com -- command
+*/
 {
-  reloj temp;
+  Clock temp;
   static byte p;
   p = (cmd->indexOf(" ")) + 1;
   temp.hora = cmd->substring(p, ":").toInt();
@@ -1090,7 +1299,16 @@ reloj config_horario(String *cmd)
   return temp;
 }
 
-void config_parametros_temp(String *cmd, sensor *temp)
+void config_parameters_temp(String *cmd, sensor *temp)
+/*
+Funcion para configurar los parametros de la maquina
+Argumentos:
+com -- comando
+
+Function to configure the parameters of the machine
+Arguments:
+com -- command
+*/
 {
   static byte p;
   p = (cmd->indexOf(":")) + 1;
@@ -1098,15 +1316,26 @@ void config_parametros_temp(String *cmd, sensor *temp)
   p = (cmd->indexOf(":", p)) + 1;
   temp->max = cmd->substring(p, ":").toInt();
   p = (cmd->indexOf(":", p)) + 1;
-  temp->histeresis = cmd->substring(p).toFloat();
+  temp->hysteresis = cmd->substring(p).toFloat();
 }
 
-int localicar_producto(producto *temp, String *str)
+int trace_product(product *temp, String *str)
+/*
+Funcion para busca el producto introducido por teclado segun codigo
+Argumentos:
+product -- struct product
+str -- codigo producto
+
+Function to search for the product entered by keyboard according to code
+Arguments:
+product -- struct product
+str -- product code
+*/
 {
   static int i;
   for (i = 0; i < 5; i++)
   {
-    if (str->equals(temp[i].codigo))
+    if (str->equals(temp[i].code))
     {
       return i;
     }
@@ -1114,10 +1343,22 @@ int localicar_producto(producto *temp, String *str)
   return -1;
 }
 
-CONTROL_HORAS horario(reloj *on, reloj *of, reloj *actual)
+Control_Hours schedule(Clock *on, Clock *of, Clock *actual)
+/*
+Funcion que nos devolvera el estado de la maquina segun la hora actual
+Argumentos:
+on -- hora de encendido
+of -- hora de apagado
+actual -- hora actual
+
+Function that will return the state of the machine according to the current time
+Arguments:
+on -- power on time
+of -- power off time
+current -- current time
+*/
 {
-  CONTROL_HORAS c_h;
-  //static bool h;
+  Control_Hours c_h;
   if ((actual->hora >= on->hora) && (actual->hora <= of->hora))
   {
     if ((actual->hora == on->hora))
@@ -1126,8 +1367,7 @@ CONTROL_HORAS horario(reloj *on, reloj *of, reloj *actual)
       {
         if ((actual->segundo >= on->segundo))
         {
-          c_h = MODO_ON;
-          //return true;
+          c_h = MODE_ON;
         }
       }
     }
@@ -1136,8 +1376,7 @@ CONTROL_HORAS horario(reloj *on, reloj *of, reloj *actual)
 
       if ((actual->hora < of->hora))
       {
-        c_h = MODO_ON;
-        //return true;
+        c_h = MODE_ON;
       }
       else if ((actual->hora == of->hora))
       {
@@ -1145,27 +1384,46 @@ CONTROL_HORAS horario(reloj *on, reloj *of, reloj *actual)
         {
           if ((actual->segundo <= of->segundo))
           {
-            c_h = MODO_ON;
-            //return true;
+            c_h = MODE_ON;
           }
         }
       }
     }
   }
-  else c_h = B_COSUMO;
+  else c_h = L_COSUM;
   return c_h;
 }
 
-float parametro_introducido(String *cmd, String delimitador)
+float parameter_introduced(String *cmd, String delimiter)
+/*
+Funcion para busca el parametro introducido por teclado
+Argumentos:
+cmd -- comando
+delimiter -- delimitador a partir donde buscara el parametro
+
+Function to search for the parameter entered by keyboard
+Arguments:
+cmd -- command
+delimiter -- delimiter from where to look for the parameter
+*/
 {
   static byte p;
   static float temp;
-  p = (cmd->indexOf(delimitador)) + 1;
+  p = (cmd->indexOf(delimiter)) + 1;
   temp = (cmd->substring(p).toInt());
   return temp;
 }
 
-int localizador_zona(String *cmd)
+int trace_zone(String *cmd)
+/*
+Funcion para busca la zona introducida por teclado
+Argumentos:
+cmd -- comando
+
+Function to search the zone entered by keyboard
+Arguments:
+cmd -- command
+*/
 {
   static byte p;
   static int temp;
@@ -1174,17 +1432,28 @@ int localizador_zona(String *cmd)
   return temp - 1;
 }
 
-void serial_delay(String *str, unsigned long tiempo)
+void serial_delay(String *str, unsigned long time)
+/*
+Funcion para imprimir por pantalla cada cierto tiempo
+Argumentos:
+str -- comando
+time -- tiempo de delay
+
+Function to print on screen from time to time
+Arguments:
+str -- command
+time -- delay time
+*/
 {
   static unsigned long cont;
-  if (millis() - cont > tiempo) {
+  if (millis() - cont > time) {
     Serial.println(*str);
     Serial.print(F("La hora atual es:"));
-    Serial.print(maquina.reloj_actual.hora);
+    Serial.print(machine.actual_hour.hora);
     Serial.print(F(":"));
-    Serial.print(maquina.reloj_actual.minuto);
+    Serial.print(machine.actual_hour.minuto);
     Serial.print(F(":"));
-    Serial.println(maquina.reloj_actual.segundo);
+    Serial.println(machine.actual_hour.segundo);
     cont = millis();
     *str = "";
   }
