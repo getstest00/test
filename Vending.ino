@@ -956,12 +956,12 @@ void loop()
   }
 }
 
-void millisClock(void)
 /*
 Funcion que mantiene el reloj actualizado 
 
 Function that keeps the clock updated
 */
+void millisClock(void)
 {
   blinkCount++;
 
@@ -999,7 +999,6 @@ Function that keeps the clock updated
   interrupts();
 }
 
-float measurement(sensor *temp)
 /*
 Funcion para realizar las medidas de los sensores
 Argumentos:
@@ -1009,6 +1008,7 @@ Function to perform sensor measurements
 Arguments:
 struct sensor
 */
+float measurement(sensor *temp)
 {
   static float measurement;
   static float o_min = (1023.0 / 5.0) * temp->ofset;
@@ -1017,7 +1017,6 @@ struct sensor
   return measurement;
 }
 
-bool estate(sensor *temp, float *measurement)
 /*
 Funcion que nos devuele el estado segun lecturas
 Argumentos:
@@ -1029,6 +1028,7 @@ Arguments:
 structure sensor
 measurement -- measurement read from sensors
 */
+bool estate(sensor *temp, float *measurement)
 {
   static bool estate;
   if (*measurement < (temp->objective - temp->hysteresis) && estate == true)
@@ -1039,7 +1039,6 @@ measurement -- measurement read from sensors
   return estate;
 }
 
-bool error_ups(sensor *temp, float *measurement)
 /*
 Funcion que nos devuele el posible error del ups
 Argumentos:
@@ -1051,6 +1050,7 @@ Arguments:
 structure sensor
 measurement -- measurement read from sensors
 */
+bool error_ups(sensor *temp, float *measurement)
 {
   static unsigned long cont;
   static bool error;
@@ -1067,7 +1067,6 @@ measurement -- measurement read from sensors
   return error;
 }
 
-bool error(sensor *temp, float *measurement, unsigned long *cont)
 /*
 Funcion que nos devuele el posible error de los sensores
 Argumentos:
@@ -1081,6 +1080,7 @@ structure sensor
 measurement -- measurement read from sensors
 cont -- counter for diferent sensors
 */
+bool error(sensor *temp, float *measurement, unsigned long *cont)
 {
   static bool error;
   if (*measurement < temp->danger)
@@ -1096,7 +1096,6 @@ cont -- counter for diferent sensors
   return error;
 }
 
-int ledBlink(unsigned long ton, unsigned long tof)
 /*
 Funcion para hacer un parpadeo en los leds
 Argumentos:
@@ -1108,6 +1107,7 @@ Arguments:
 ton -- time on
 tof -- time of
 */
+int ledBlink(unsigned long ton, unsigned long tof)
 {
   static unsigned long tbefore;
   static int ledstate;
@@ -1131,7 +1131,6 @@ tof -- time of
   return ledstate;
 }
 
-unsigned long readButton(int input)
 /*
 Funcion que nos devuele el tiempo trascurrido pulsando un boton
 Argumentos:
@@ -1141,6 +1140,7 @@ Function that returns the elapsed time by pressing a button
 Arguments:
 input -- input
 */
+unsigned long readButton(int input)
 {
   static int previusState = HIGH;
   static int actualState;
@@ -1163,7 +1163,6 @@ input -- input
   return timePressed;
 }
 
-bool comparison(float price, float amount)
 /*
 Funcion que nos devuelve "true" si el importe es mayor al precio
 Argumentos:
@@ -1175,6 +1174,7 @@ Arguments:
 price -- price
 amount -- amount
 */
+bool comparison(float price, float amount)
 {
   static bool comp;
   if (amount < price)
@@ -1184,7 +1184,6 @@ amount -- amount
   return comp;
 }
 
-float amount(unsigned long time)
 /*
 Funcion que convierte el timpo en euros
 Argumentos:
@@ -1194,6 +1193,7 @@ Function that converts time into euros
 Arguments:
 time - time
 */
+float amount(unsigned long time)
 {
   static int cent;
   static float euro;
@@ -1209,7 +1209,6 @@ time - time
   return euro;
 }
 
-float change(float price, float euro)
 /*
 Funcion que calcula el cambio
 Argumentos:
@@ -1221,6 +1220,7 @@ Arguments:
 price -- price
 euro -- entered amount
 */
+float change(float price, float euro)
 {
   static float change;
   if (euro >= price)
@@ -1234,7 +1234,6 @@ euro -- entered amount
   return change;
 }
 
-float changeSeg(float cam)
 /*
 Funcion que calcula el cambio en segundos
 Argumentos:
@@ -1244,13 +1243,13 @@ Function that calculates the change in seconds
 Arguments:
 cam -- change in euros
 */
+float changeSeg(float cam)
 {
   static float camseg;
   camseg = (cam * 100 * 500) / 5;
   return camseg;
 }
 
-byte serialEvent(String *com)
 /*
 Funcion para leer el teclado
 Si se ha escrito algo devolvera un 1, de no ser asi un 0
@@ -1262,6 +1261,7 @@ If something has been written it will return a 1, otherwise a 0
 Arguments:
 com -- string where the entered data will be saved
 */
+byte serialEvent(String *com)
 {
   static char inChar;
   while (Serial.available() > 0)
@@ -1277,7 +1277,6 @@ com -- string where the entered data will be saved
   return 0;
 }
 
-Clock config_schedule(String *cmd)
 /*
 Funcion para configurar el horario de la maquina
 Argumentos:
@@ -1287,6 +1286,7 @@ Function to set the time of the machine
 Arguments:
 com -- command
 */
+Clock config_schedule(String *cmd)
 {
   Clock temp;
   static byte p;
@@ -1299,7 +1299,6 @@ com -- command
   return temp;
 }
 
-void config_parameters_temp(String *cmd, sensor *temp)
 /*
 Funcion para configurar los parametros de la maquina
 Argumentos:
@@ -1309,6 +1308,7 @@ Function to configure the parameters of the machine
 Arguments:
 com -- command
 */
+void config_parameters_temp(String *cmd, sensor *temp)
 {
   static byte p;
   p = (cmd->indexOf(":")) + 1;
@@ -1319,7 +1319,6 @@ com -- command
   temp->hysteresis = cmd->substring(p).toFloat();
 }
 
-int trace_product(product *temp, String *str)
 /*
 Funcion para busca el producto introducido por teclado segun codigo
 Argumentos:
@@ -1331,6 +1330,7 @@ Arguments:
 product -- struct product
 str -- product code
 */
+int trace_product(product *temp, String *str)
 {
   static int i;
   for (i = 0; i < 5; i++)
@@ -1343,7 +1343,6 @@ str -- product code
   return -1;
 }
 
-Control_Hours schedule(Clock *on, Clock *of, Clock *actual)
 /*
 Funcion que nos devolvera el estado de la maquina segun la hora actual
 Argumentos:
@@ -1357,6 +1356,7 @@ on -- power on time
 of -- power off time
 current -- current time
 */
+Control_Hours schedule(Clock *on, Clock *of, Clock *actual)
 {
   Control_Hours c_h;
   if ((actual->hora >= on->hora) && (actual->hora <= of->hora))
@@ -1394,7 +1394,6 @@ current -- current time
   return c_h;
 }
 
-float parameter_introduced(String *cmd, String delimiter)
 /*
 Funcion para busca el parametro introducido por teclado
 Argumentos:
@@ -1406,6 +1405,7 @@ Arguments:
 cmd -- command
 delimiter -- delimiter from where to look for the parameter
 */
+float parameter_introduced(String *cmd, String delimiter)
 {
   static byte p;
   static float temp;
@@ -1414,7 +1414,6 @@ delimiter -- delimiter from where to look for the parameter
   return temp;
 }
 
-int trace_zone(String *cmd)
 /*
 Funcion para busca la zona introducida por teclado
 Argumentos:
@@ -1424,6 +1423,7 @@ Function to search the zone entered by keyboard
 Arguments:
 cmd -- command
 */
+int trace_zone(String *cmd)
 {
   static byte p;
   static int temp;
@@ -1432,7 +1432,6 @@ cmd -- command
   return temp - 1;
 }
 
-void serial_delay(String *str, unsigned long time)
 /*
 Funcion para imprimir por pantalla cada cierto tiempo
 Argumentos:
@@ -1444,6 +1443,7 @@ Arguments:
 str -- command
 time -- delay time
 */
+void serial_delay(String *str, unsigned long time)
 {
   static unsigned long cont;
   if (millis() - cont > time) {
